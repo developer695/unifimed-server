@@ -1,15 +1,17 @@
+import dotenv from 'dotenv';
+
+dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import uploadRoutes from './routes/uploadRoutes';
 import { errorHandler, notFound } from './middleware';
-import { env } from './config/env';
 
 const app = express();
-const PORT = env.PORT;
+const PORT = process.env.PORT;
 
 // Middleware
 app.use(cors({
-    origin: env.FRONTEND_URL,
+    origin: process.env.FRONTEND_URL,
     credentials: true,
 }));
 app.use(express.json());
@@ -30,8 +32,8 @@ app.get('/health', (req, res) => {
         message: 'Unifimed Insight Nexus Server is running',
         timestamp: new Date().toISOString(),
         services: {
-            supabase: env.SUPABASE_URL ? 'Configured' : 'Not configured',
-            cloudinary: env.CLOUDINARY_CLOUD_NAME ? 'Configured' : 'Not configured'
+            supabase: process.env.SUPABASE_URL ? 'Configured' : 'Not configured',
+            cloudinary: process.env.CLOUDINARY_CLOUD_NAME ? 'Configured' : 'Not configured'
         }
     });
 });
@@ -43,8 +45,8 @@ app.use(errorHandler);
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📍 Health check: http://localhost:${PORT}/health`);
-    console.log(`📁 Supabase: ${env.SUPABASE_URL ? '✅ Configured' : '❌ Not configured'}`);
-    console.log(`☁️  Cloudinary: ${env.CLOUDINARY_CLOUD_NAME ? '✅ Configured' : '❌ Not configured'}`);
+    console.log(`📁 Supabase: ${process.env.SUPABASE_URL ? '✅ Configured' : '❌ Not configured'}`);
+    console.log(`☁️  Cloudinary: ${process.env.CLOUDINARY_CLOUD_NAME ? '✅ Configured' : '❌ Not configured'}`);
 });
 
 export default app;

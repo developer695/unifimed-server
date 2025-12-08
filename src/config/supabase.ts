@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { env } from './env';
 
+const env = process.env;
 if (!env.SUPABASE_URL) {
     throw new Error('Missing SUPABASE_URL environment variable');
 }

@@ -1,13 +1,12 @@
 import { Request, Response } from 'express';
 import cloudinary from '../config/cloudinary';
 import { supabase } from '../config/supabase';
-import { UploadResponse, PdfCategory } from '../types';
-import { env } from '../config/env';
+import { UploadResponse, } from '../types';
 
 // 1. Generate Signed Upload URL
 export const generateUploadUrl = async (req: Request, res: Response) => {
     try {
-        const { filename, category, userId, userEmail } = req.body;
+        const { filename, category, userId, userEmail, action } = req.body;
 
         // Validate required fields
         if (!filename || !category || !userId || !userEmail) {
@@ -15,6 +14,90 @@ export const generateUploadUrl = async (req: Request, res: Response) => {
                 success: false,
                 message: 'Missing required fields: filename, category, userId, userEmail'
             });
+        }
+
+
+        if (category === 'rules_upload_pdf') {
+            if (action === 'clear') {
+
+                try {
+                    const { data: rulesFiles, error: filesFetchError } = await supabase
+                        .from('pdf_uploads')
+                        .select('id, cloudinary_public_id')
+                        .eq('user_id', userId)
+                        .eq('category', 'rules_upload_pdf');
+
+                    if (filesFetchError) {
+                        console.error('❌ Error fetching rules files:', filesFetchError);
+                    } else if (rulesFiles && rulesFiles.length > 0) {
+                        const cloudinaryDeletePromises = rulesFiles.map(async (file) => {
+                            try {
+                                await cloudinary.uploader.destroy(file.cloudinary_public_id, {
+                                    resource_type: 'raw'
+                                });
+                                return true;
+                            } catch (cloudinaryError) {
+                                console.error(`❌ Failed to delete from Cloudinary: ${file.cloudinary_public_id}`, cloudinaryError);
+                                return false;
+                            }
+                        });
+
+                        await Promise.all(cloudinaryDeletePromises);
+
+                        // Step 3: Delete all rules PDF records from pdf_uploads table
+                        const { error: deleteFilesError } = await supabase
+                            .from('pdf_uploads')
+                            .delete()
+                            .eq('user_id', userId)
+                            .eq('category', 'rules_upload_pdf');
+
+                        if (deleteFilesError) {
+                            console.error('❌ Error deleting rules files from database:', deleteFilesError);
+                        } else {
+                            console.log(`🗑️ Deleted ${rulesFiles.length} rules PDF records from database`);
+                        }
+                    } else {
+                        console.log('ℹ️ No existing rules PDF files found to delete');
+                    }
+
+                    // Step 4: Clear data from 'rules' table for this user
+                    const { error: rulesError } = await supabase
+                        .from('rules')
+                        .delete()
+                        .neq('id', 0);
+
+                    if (rulesError) {
+                        console.error('❌ Error clearing rules table:', rulesError);
+                        return res.status(500).json({
+                            success: false,
+                            message: 'Failed to clear rules table',
+                            error: rulesError.message
+                        });
+                    }
+
+                    // Step 5: Clear data from 'rag_rules' table for this user
+                    const { error: ragRulesError } = await supabase
+                        .from('rag_rules')  // Add quotes around the table name
+                        .delete()
+                        .neq('id', 0);
+
+                    if (ragRulesError) {
+                        console.error('❌ Error clearing rag_rules table:', ragRulesError);
+                        return res.status(500).json({
+                            success: false,
+                            message: 'Failed to clear rag_rules table',
+                            error: ragRulesError.message
+                        });
+                    }
+                } catch (clearError) {
+                    console.error('❌ Error during rules clearing:', clearError);
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Failed to clear existing rules',
+                        error: clearError instanceof Error ? clearError.message : String(clearError),
+                    });
+                }
+            }
         }
 
 
@@ -175,7 +258,6 @@ export const getFiles = async (req: Request, res: Response) => {
             console.error('❌ [getFiles] Supabase error:', error);
             throw error;
         }
-
 
         res.json({
             success: true,

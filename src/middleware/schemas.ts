@@ -5,6 +5,7 @@ export const generateSignedUrlSchema = z.object({
     category: z.enum(['contact_enrichment_pdf', 'keyword_research_pdf', 'rules_upload_pdf']),
     userId: z.string().uuid('Valid user ID is required'),
     userEmail: z.string().email('Valid email is required'),
+    action: z.enum(['clear', 'update']).optional(), // Fix: use array of valid values
 });
 
 export const saveFileRecordSchema = z.object({
