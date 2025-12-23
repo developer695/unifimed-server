@@ -11,7 +11,6 @@ export const getCampaigns = async (req: Request, res: Response) => {
         error: "Campaign webhook URL not configured",
       });
     }
-
     const response = await fetch(n8nWebhookUrl, {
       method: "GET",
     });

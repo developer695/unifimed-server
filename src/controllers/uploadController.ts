@@ -324,3 +324,151 @@ export const deleteFile = async (req: Request, res: Response) => {
         });
     }
 };
+
+
+
+
+export const generateLinkedInUploadUrl = async (req: Request, res: Response) => {
+    try {
+        const { filename, campaignId, userId } = req.body;
+
+        if (!filename || !campaignId || !userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing filename, campaignId, or userId'
+            });
+        }
+
+        const timestamp = Date.now();
+        const publicId = `linkedin-ads/${campaignId}_${timestamp}`;
+        const folder = 'linkedin-ads';
+        const uploadPreset = 'unifimed-pdf-upload-signed'; // Your preset name
+
+        // Parameters for signature - MUST include ALL parameters in alphabetical order!
+        const params = {
+            folder: folder,  // ADD THIS!
+            public_id: publicId,
+            timestamp: timestamp,
+            upload_preset: uploadPreset,
+        };
+
+        // Generate signature - ALL parameters must be in alphabetical order
+        const signature = cloudinary.utils.api_sign_request(params, process.env.CLOUDINARY_API_SECRET!);
+
+        res.json({
+            success: true,
+            uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`,
+            params: {
+                api_key: process.env.CLOUDINARY_API_KEY,
+                timestamp: timestamp,
+                signature: signature,
+                upload_preset: uploadPreset,
+                public_id: publicId,
+                folder: folder  // Make sure to include this too
+            }
+        });
+
+    } catch (error: any) {
+        console.error('❌ LinkedIn upload URL error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to generate upload URL'
+        });
+    }
+};
+
+// 2. SIMPLE SAVE: Save image URL to database after upload
+export const saveLinkedInImage = async (req: Request, res: Response) => {
+    try {
+        const { campaignId, userId, imageUrl, publicId } = req.body;
+
+        if (!campaignId || !userId || !imageUrl || !publicId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required data'
+            });
+        }
+
+        // Just update the campaign with image URL
+        const { error } = await supabase
+            .from('linkedin_ads_approval')
+            .update({
+                image_url: imageUrl,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', campaignId)
+            .eq('user_id', userId);
+
+        if (error) throw error;
+
+        res.json({
+            success: true,
+            message: 'Image saved successfully'
+        });
+
+    } catch (error: any) {
+        console.error('❌ Save LinkedIn image error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to save image'
+        });
+    }
+};
+
+export const deleteLinkedInImage = async (req: Request, res: Response) => {
+
+    try {
+        const { campaignId } = req.params;
+        const { userId, publicId } = req.body;
+        if (!campaignId || !userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required data: campaignId and userId'
+            });
+        }
+
+        let cloudinaryDeleted = false;
+        if (publicId && publicId.startsWith('linkedin-ads/')) {
+            try {
+                // Delete from Cloudinary
+                await cloudinary.uploader.destroy(publicId);
+                cloudinaryDeleted = true;
+            } catch (cloudinaryError) {
+                console.error('❌ Cloudinary deletion error:', cloudinaryError);
+            }
+        }
+
+        // 2. Remove from database (ALWAYS do this for both imgbb and Cloudinary images)
+        const { error } = await supabase
+            .from('linkedin_ads_approval')
+            .update({
+                image_url: null,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', campaignId)
+
+
+
+        if (error) {
+            console.error('❌ Database update error:', error);
+            throw error;
+        }
+
+        res.json({
+            success: true,
+            message: 'Image removed successfully',
+            details: {
+                cloudinaryDeleted: cloudinaryDeleted,
+                databaseUpdated: true
+            }
+        });
+
+    } catch (error: any) {
+        console.error('❌ Delete LinkedIn image error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to remove image',
+            error: error.message,
+        });
+    }
+};

@@ -3,7 +3,11 @@ import {
     generateUploadUrl,
     saveFile,
     getFiles,
-    deleteFile
+    deleteFile,
+
+    generateLinkedInUploadUrl,
+    saveLinkedInImage,
+    deleteLinkedInImage
 } from '../controllers/uploadController';
 import { validateRequest, rateLimiter } from '../middleware';
 import {
@@ -26,5 +30,12 @@ router.get('/files', getFiles);
 
 // 4. Delete file from both Cloudinary and database
 router.delete('/files/:id', deleteFile);
+
+
+
+// In uploadRoutes.ts - CHANGE THIS
+router.delete('/upload/linkedin/:campaignId', deleteLinkedInImage);  // Add /upload prefix
+router.post('/upload/linkedin/generate-url', generateLinkedInUploadUrl);
+router.post('/upload/linkedin/save', saveLinkedInImage);
 
 export default router;
